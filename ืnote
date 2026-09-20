@@ -1,12 +1,14 @@
-1. nest new "name project" = สร้างโปรเจคใหม่
-2. npm install @nestjs/config = สร้าง.env
-3. built file "docker-compose.yml" = สร้างฐานข้อมูล
-    3.1 docker compose up -d = สร้างและสตาร์ต container ทุกตัวในไฟล์
-    3.2 docker compose down -v = ลบ volume เก่าทิ้งด้วยทั้งหมด
-4. npm install typeorm@latest,npm install -D tsx = ตัวเชื่อม DB กับ coding
-5. npm run migration:create 'name' = สร้างไฟล์ migration
-    5.1 built file "database.config.ts"
-    5.2 package.json =
-        "typeorm": "tsx ./node_modules/typeorm/cli.js -d src/database/database.config.ts",
-        "migration:create": "tsx ./node_modules/typeorm/cli.js migration:create"
-6. 
+1. clone project 
+    1.1 git clone https://github.com/FrictionGrid/name.git new_name
+    1.2 cd new_name
+    1.3 git checkout CommitID = ไปที่ Repo ที่ต้องการ
+    1.4 rmdir /s /q .git = ลบ Repo เดิมทั้งหมด
+    1.5 built new Repo
+    1.6 npm install = โหลด dependency ทั้งหมดของโปรเจกต์ครั้งเดียว
+2.  npm install ejs = EJS ทำงานที่ ฝั่ง server โดยเติมข้อมูลให้เสร็จก่อน แล้วค่อยส่ง HTML สมบูรณ์มา browser
+    2.1 const app = await NestFactory.create<NestExpressApplication>(AppModule); = บอกว่าใช้ express
+    2.2 app.setBaseViewsDir(join(__dirname, '..', 'view')); = บอกว่า folder อยู่ไหน
+    2.3 app.useStaticAssets(join(__dirname, '..', 'public')); = เปิดโฟลเดอร์ public ให้เข้าถึงได้
+    2.4 app.setViewEngine('ejs'); = บอกว่าใช้ EJS มาดึงข้อมูลมาใส่หน้าบ้านให้สมบูรณ์
+    2.5 สำหรับหน้าเว็บ EJS → ส่ง HTML เเละ สำหรับ React หรือแอปอื่น → ส่ง JSON
+    2.6 @Render หรือ @Res() + res.render()คือการสั่งให้ เอาข้อมูลไปสร้างหน้าเว็บด้วย template engine ที่ตั้งไว้
