@@ -5,10 +5,13 @@
     1.4 rmdir /s /q .git = ลบ Repo เดิมทั้งหมด
     1.5 built new Repo
     1.6 npm install = โหลด dependency ทั้งหมดของโปรเจกต์ครั้งเดียว
-2.  npm install ejs = EJS ทำงานที่ ฝั่ง server โดยเติมข้อมูลให้เสร็จก่อน แล้วค่อยส่ง HTML สมบูรณ์มา browser
+2. npm install ejs = EJS ทำงานที่ ฝั่ง server โดยเติมข้อมูลให้เสร็จก่อน แล้วค่อยส่ง HTML สมบูรณ์มา browser
     2.1 const app = await NestFactory.create<NestExpressApplication>(AppModule); = บอกว่าใช้ express
     2.2 app.setBaseViewsDir(join(__dirname, '..', 'view')); = บอกว่า folder อยู่ไหน
     2.3 app.useStaticAssets(join(__dirname, '..', 'public')); = เปิดโฟลเดอร์ public ให้เข้าถึงได้
     2.4 app.setViewEngine('ejs'); = บอกว่าใช้ EJS มาดึงข้อมูลมาใส่หน้าบ้านให้สมบูรณ์
     2.5 สำหรับหน้าเว็บ EJS → ส่ง HTML เเละ สำหรับ React หรือแอปอื่น → ส่ง JSON
     2.6 @Render หรือ @Res() + res.render()คือการสั่งให้ เอาข้อมูลไปสร้างหน้าเว็บด้วย template engine ที่ตั้งไว้
+3. npm install ejs express-ejs-layouts เเละ npm install -D @types/express-ejs-layouts 
+    3.1 app.set('layout', 'layouts/main'); = 'layout', 'path' = views/layouts/main.ejs
+
