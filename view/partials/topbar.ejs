@@ -1,0 +1,57 @@
+<%
+    const me = locals.user || { name: '-', email: '' };
+    const initial = (me.name || '?').charAt(0).toUpperCase();
+    const todayText = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' }).format(new Date());
+%>
+<header class="topbar">
+  <button type="button" class="icon-btn topbar-toggle" data-sidebar-toggle aria-label="เปิดเมนู">
+    <%- include('icon', { name: 'menu' }) %>
+  </button>
+
+  <div class="topbar-heading">
+    <h1 class="topbar-title"><%= locals.pageTitle || '' %></h1>
+    <div class="topbar-sub"><%= todayText %></div>
+  </div>
+
+  <%# ตัวเลือกช่วงเวลา (เช่น ‹ 14 พ.ย. – 20 พ.ย. ›) · หน้าไหนอยากได้ ส่ง periodNav มาจาก controller %>
+  <% if (locals.periodNav) { const p = locals.periodNav; %>
+    <nav class="topbar-period" aria-label="เลือกช่วงเวลา">
+      <div class="period-group">
+        <a class="period-btn" href="<%= p.prevHref %>" aria-label="ก่อนหน้า"><%- include('icon', { name: 'left' }) %></a>
+        <span class="period-label"><%- include('icon', { name: 'calendar', cls: 'period-icon' }) %><%= p.label %></span>
+        <a class="period-btn" href="<%= p.nextHref %>" aria-label="ถัดไป"><%- include('icon', { name: 'right' }) %></a>
+      </div>
+    </nav>
+  <% } %>
+
+  <div class="topbar-user">
+    <button type="button" class="topbar-user-btn" id="profile-toggle" aria-haspopup="true" aria-expanded="false">
+      <span class="avatar" aria-hidden="true"><%= initial %></span>
+      <div class="user-meta">
+        <div class="user-name"><%= me.name %></div>
+        <div class="user-email"><%= me.email %></div>
+      </div>
+    </button>
+
+    <!-- การ์ดโปรไฟล์: คลิกชื่อ/รูปมุมขวาบนเพื่อเปิด -->
+    <div class="profile-card" id="profile-card" hidden>
+      <div class="profile-photo"><%= initial %></div>
+      <div class="profile-name"><%= me.name %></div>
+      <div class="profile-email"><%= me.email %></div>
+    </div>
+  </div>
+</header>
+
+<script>
+  (function () {
+    var btn = document.getElementById('profile-toggle');
+    var card = document.getElementById('profile-card');
+    function toggle(open) {
+      card.hidden = !open;
+      btn.setAttribute('aria-expanded', open);
+    }
+    btn.addEventListener('click', function (e) { e.stopPropagation(); toggle(card.hidden); });
+    document.addEventListener('click', function (e) { if (!card.contains(e.target)) toggle(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') toggle(false); });
+  })();
+</script>

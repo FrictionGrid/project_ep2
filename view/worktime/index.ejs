@@ -1,0 +1,219 @@
+<%
+    const num = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+    const hrs = (n) => num(n) + ' ชม.';
+%>
+<!-- สรุปสัปดาห์ -->
+<div class="stat-grid stat-grid-3">
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'clock' }) %></span><span class="stat-label">ชั่วโมงทำงาน</span></div>
+    <div class="stat-value"><%= num(summary.total) %> <small>/ <%= hrs(summary.fullTotal) %></small></div>
+    <div class="stat-bar"><span style="width: <%= Math.min(100, summary.total / summary.fullTotal * 100).toFixed(1) %>%"></span></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'sun' }) %></span><span class="stat-label">กะกลางวัน</span></div>
+    <div class="stat-value"><%= num(summary.dayTotal) %> <small>ชม.</small></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'moon' }) %></span><span class="stat-label">กะกลางคืน</span></div>
+    <div class="stat-value"><%= num(summary.nightTotal) %> <small>ชม.</small></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="wt-table">
+      <%# ความกว้างคอลัมน์คงที่: วันที่ · กลางวัน · กลางคืน · รวม · จัดการ %>
+      <colgroup>
+        <col class="wt-w-date" /><col class="wt-w-shift" /><col class="wt-w-shift" /><col class="wt-w-sum" /><col class="wt-w-manage" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>วันที่</th>
+          <th class="wt-center"><span class="th-icon"><%- include('../partials/icon', { name: 'sun' }) %>กะกลางวัน</span></th>
+          <th class="wt-center"><span class="th-icon"><%- include('../partials/icon', { name: 'moon' }) %>กะกลางคืน</span></th>
+          <th class="num">รวม</th>
+          <th class="wt-col-manage">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% days.forEach(function (d) { %>
+          <tr class="<%= d.isToday ? 'is-today' : '' %>">
+            <td class="wt-date">
+              <div class="wt-date-day"><%= d.dayName %></div>
+              <div class="wt-date-sub"><%= d.label %><% if (d.isToday) { %> · <b>วันนี้</b><% } %></div>
+            </td>
+
+            <% ['day', 'night'].forEach(function (key) {
+                 const s = d.shifts.find(function (x) { return x.shift === key; }); %>
+              <td class="wt-shift">
+                <% if (!s) { %>
+                  <span class="wt-noshift">ไม่มีกะ</span>
+                <% } else if (s.status === 'none') { %>
+                  <%# ยังไม่ลง → ปุ่มเข้างาน %>
+                  <form method="POST" action="/worktime" class="wt-inline">
+                    <input type="hidden" name="date" value="<%= d.date %>" />
+                    <input type="hidden" name="shift" value="<%= s.shift %>" />
+                    <input type="hidden" name="action" value="work" />
+                    <button type="submit" class="wt-clock">
+                      <span class="wt-clock-dot" aria-hidden="true"></span>
+                      เข้างาน <span class="wt-clock-hrs"><%= hrs(s.full) %></span>
+                    </button>
+                  </form>
+                <% } else { %>
+                  <%# ลงแล้ว → แสดงสถานะ + ปุ่ม × ยกเลิก %>
+                  <div class="wt-state wt-state-<%= s.status %>">
+                    <span class="wt-state-main">
+                      <% if (s.status === 'work') { %><%- include('../partials/icon', { name: 'check', stroke: 2.4 }) %> เข้างาน <b><%= hrs(s.full) %></b>
+                      <% } else if (s.status === 'partial') { %>เข้างาน <b><%= num(s.actual) %>/<%= hrs(s.full) %></b>
+                      <% } else { %>ลา<% } %>
+                    </span>
+                    <form method="POST" action="/worktime" class="wt-inline" data-confirm="ยกเลิกการลงเวลากะ<%= s.label %> วัน<%= d.dayName %>?">
+                      <input type="hidden" name="date" value="<%= d.date %>" />
+                      <input type="hidden" name="shift" value="<%= s.shift %>" />
+                      <input type="hidden" name="action" value="clear" />
+                      <button type="submit" class="wt-undo" aria-label="ยกเลิกการลงเวลากะ<%= s.label %>" title="ยกเลิก"><%- include('../partials/icon', { name: 'x', stroke: 2.2 }) %></button>
+                    </form>
+                  </div>
+                  <% if (s.reason) { %><div class="wt-note" title="<%= s.reason %>"><%= s.status === 'partial' ? 'ลา ' + hrs(s.absent) + ' · ' : '' %><%= s.reason %></div><% } %>
+                <% } %>
+              </td>
+            <% }) %>
+
+            <td class="num wt-sum<%= d.actual === 0 ? ' zero' : '' %>"><%= num(d.actual) %> <span>/ <%= hrs(d.full) %></span></td>
+
+            <td class="wt-col-manage">
+              <button type="button" class="wt-leave-btn" data-leave
+                data-date="<%= d.date %>" data-title="<%= d.dayName %> <%= d.label %>"
+                data-shifts="<%= JSON.stringify(d.shifts.map(function (s) { return { shift: s.shift, label: s.label, full: s.full, status: s.status, absent: s.absent, reason: s.reason }; })) %>"><%- include('../partials/icon', { name: 'leave' }) %>ลางาน</button>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr class="wt-total-row">
+          <td>รวมสัปดาห์</td>
+          <td class="wt-shift"><%= hrs(summary.dayTotal) %></td>
+          <td class="wt-shift"><%= hrs(summary.nightTotal) %></td>
+          <td class="num wt-sum"><%= num(summary.total) %> <span>/ <%= hrs(summary.fullTotal) %></span></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- popup ลางาน (ใช้ร่วมทุกวัน · JS เติมข้อมูลวันที่กดให้) -->
+<dialog class="modal" id="leave-dialog" aria-labelledby="leave-title">
+  <form method="POST" action="/worktime/leave" class="modal-body" id="leave-form">
+    <div>
+      <h3 class="modal-title" id="leave-title">ลางาน</h3>
+      <p class="modal-sub" id="leave-date"></p>
+    </div>
+    <input type="hidden" name="date" />
+
+    <fieldset class="seg-field">
+      <legend>กะที่ลา</legend>
+      <div class="seg" id="leave-scope"></div>
+    </fieldset>
+
+    <fieldset class="seg-field">
+      <legend>ลาแบบ</legend>
+      <div class="seg">
+        <label><input type="radio" name="mode" value="leave" checked /><span>ลาทั้งกะ</span></label>
+        <label><input type="radio" name="mode" value="partial" /><span>ลาบางชั่วโมง</span></label>
+      </div>
+    </fieldset>
+
+    <div class="field" id="leave-hours" hidden>
+      <label class="field-label" for="leave-absent">ลากี่ชั่วโมง <span class="muted" id="leave-absent-hint"></span></label>
+      <input class="input" type="number" id="leave-absent" name="absent" min="0.5" step="0.5" />
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="leave-reason">เหตุผล</label>
+      <input class="input" type="text" id="leave-reason" name="reason" maxlength="255" required placeholder="เช่น ลาป่วย, ไปพบแพทย์, ลากิจ" />
+    </div>
+
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button type="submit" class="btn btn-primary">บันทึกการลา</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    // ปุ่ม × ยกเลิกการลงเวลา → ถามก่อน
+    document.querySelectorAll('form[data-confirm]').forEach(function (f) {
+      f.addEventListener('submit', function (e) { if (!confirm(f.dataset.confirm)) e.preventDefault(); });
+    });
+
+    var dlg = document.getElementById('leave-dialog');
+    var form = document.getElementById('leave-form');
+    var scopeBox = document.getElementById('leave-scope');
+    var hoursBox = document.getElementById('leave-hours');
+    var absent = document.getElementById('leave-absent');
+    var reason = document.getElementById('leave-reason');
+    var shifts = [];
+
+    function radio(name, value, text, checked) {
+      var l = document.createElement('label');
+      var i = document.createElement('input');
+      i.type = 'radio'; i.name = name; i.value = value; i.checked = !!checked;
+      var s = document.createElement('span');
+      s.textContent = text;
+      l.appendChild(i); l.appendChild(s);
+      i.addEventListener('change', sync);
+      return l;
+    }
+
+    // ลาบางชั่วโมง ใช้ได้เฉพาะเลือกกะเดียว
+    function sync() {
+      var scope = (form.querySelector('input[name=scope]:checked') || {}).value;
+      var partialRadio = form.querySelector('input[name=mode][value=partial]');
+      partialRadio.disabled = scope === 'both';
+      if (scope === 'both') form.querySelector('input[name=mode][value=leave]').checked = true;
+      var partial = partialRadio.checked;
+      hoursBox.hidden = !partial;
+      absent.disabled = !partial;
+      absent.required = partial;
+      var sh = shifts.filter(function (s) { return s.shift === scope; })[0];
+      if (sh) {
+        absent.max = sh.full - 0.5;
+        document.getElementById('leave-absent-hint').textContent = '(กะ' + sh.label + ' เต็ม ' + sh.full + ' ชม.)';
+      }
+    }
+    form.querySelectorAll('input[name=mode]').forEach(function (r) { r.addEventListener('change', sync); });
+
+    document.querySelectorAll('[data-leave]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        shifts = JSON.parse(btn.dataset.shifts || '[]');
+        form.date.value = btn.dataset.date;
+        document.getElementById('leave-date').textContent = 'วัน' + btn.dataset.title;
+
+        // ตัวเลือกกะ: กะที่มีในวันนั้น + ทั้งวัน (ถ้ามีมากกว่า 1 กะ)
+        scopeBox.innerHTML = '';
+        shifts.forEach(function (s, i) {
+          scopeBox.appendChild(radio('scope', s.shift, s.label + ' ' + s.full + ' ชม.', i === 0));
+        });
+        if (shifts.length > 1) {
+          var total = shifts.reduce(function (n, s) { return n + s.full; }, 0);
+          scopeBox.appendChild(radio('scope', 'both', 'ทั้งวัน ' + total + ' ชม.'));
+        }
+
+        form.querySelector('input[name=mode][value=leave]').checked = true;
+        absent.value = '';
+        var existing = shifts.filter(function (s) { return s.reason; })[0];
+        reason.value = existing ? existing.reason : '';
+
+
+        sync();
+        dlg.showModal();
+        reason.focus();
+      });
+    });
+
+    dlg.querySelector('[data-close]').addEventListener('click', function () { dlg.close(); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  })();
+</script>

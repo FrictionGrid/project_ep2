@@ -1,0 +1,94 @@
+<%
+    // error ที่จะแสดงด้านบนฟอร์ม: error ทั่วไป หรือ error แรกของ field
+    const errors = locals.errors || {};
+    const firstError = locals.error || errors.email || errors.password;
+    const oldEmail = (locals.old && locals.old.email) || '';
+%>
+<!doctype html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in · Friction</title>
+    <link rel="icon" type="image/png" href="/images/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/style.css" />
+</head>
+
+<body>
+    <div class="login">
+
+        <!-- ซ้าย: ฟอร์ม -->
+        <div class="login__left">
+            <form class="login__form" method="POST" action="/auth/login" novalidate>
+
+                <div class="login__brand">
+                    <img src="/images/logo-mark.png" alt="Friction logo" />
+                    <div class="login__brand-text">
+                        <div class="login__brand-name">FRICTION</div>
+                        <div class="login__brand-full">Friction Company</div>
+                    </div>
+                </div>
+
+                <h1 class="login__title">Welcome back</h1>
+                <p class="login__subtitle">Sign in to continue to Friction.</p>
+
+                <% if (firstError) { %>
+                    <div class="login__alert login__alert--error" role="alert"><%= firstError %></div>
+                <% } %>
+
+                <% if (locals.success) { %>
+                    <div class="login__alert login__alert--success" role="status"><%= locals.success %></div>
+                <% } %>
+
+                <label class="login__label" for="email">Email</label>
+                <div class="login__field">
+                    <%- include('../partials/icon', { name: 'mail', cls: 'login__field-icon' }) %>
+                    <input class="login__input <%= errors.email ? 'is-invalid' : '' %>" type="email" id="email" name="email"
+                        value="<%= oldEmail %>" placeholder="you@friction.com" autocomplete="email" required autofocus />
+                </div>
+
+                <label class="login__label" for="password">Password</label>
+                <div class="login__field">
+                    <%- include('../partials/icon', { name: 'lock', cls: 'login__field-icon' }) %>
+                    <input class="login__input login__input--pw <%= errors.password ? 'is-invalid' : '' %>" type="password" id="password" name="password"
+                        placeholder="••••••••••" autocomplete="current-password" required />
+                    <%# ปุ่มดูรหัส: ช่วยเช็กว่าพิมพ์ถูก (เช่น ลืมเปลี่ยนแป้นเป็นภาษาอังกฤษ) %>
+                    <button type="button" class="login__pw-toggle" id="pw-toggle" aria-label="แสดงรหัสผ่าน" aria-pressed="false">แสดง</button>
+                </div>
+
+                <button type="submit" class="login__btn">Sign in <%- include('../partials/icon', { name: 'arrow' }) %></button>
+
+                <p class="login__footer">© <%= new Date().getFullYear() %> Friction Company. All rights reserved.</p>
+            </form>
+        </div>
+
+        <!-- ขวา: แผงแบรนด์ -->
+        <div class="login__right">
+            <div class="login__hero">
+                <img class="login__hero-logo" src="/images/logo-full.png" alt="Friction Company — Technology that removes friction." />
+            </div>
+            <p class="login__hero-foot">Timesheet · Workforce · Operations</p>
+        </div>
+
+    </div>
+    <script>
+        (function () {
+            var btn = document.getElementById('pw-toggle');
+            var pw = document.getElementById('password');
+            btn.addEventListener('click', function () {
+                var show = pw.type === 'password';
+                pw.type = show ? 'text' : 'password';
+                btn.textContent = show ? 'ซ่อน' : 'แสดง';
+                btn.setAttribute('aria-pressed', show);
+                btn.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
+                pw.focus();
+            });
+        })();
+    </script>
+</body>
+
+</html>

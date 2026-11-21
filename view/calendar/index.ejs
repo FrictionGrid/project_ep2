@@ -1,0 +1,390 @@
+<%# Calendar: ปฏิทินตารางเวลา (นัดหมาย / ประชุม / กิจกรรมทุกอย่าง)
+    ⚠️ หน้าบ้านอย่างเดียว: ไม่มีข้อมูลตัวอย่าง · เพิ่ม/แก้ในเบราว์เซอร์ · รีเฟรชแล้วหาย (ยังไม่ต่อ DB) %>
+
+<!-- สรุปของช่วงที่กำลังดู (JS คำนวณ) -->
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'calendar' }) %></span><span class="stat-label" id="st-total-label">ทั้งเดือน</span></div>
+    <div class="stat-value"><span id="st-total">0</span> <small>รายการ</small></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'sun' }) %></span><span class="stat-label">วันนี้</span></div>
+    <div class="stat-value"><span id="st-today">0</span> <small>รายการ</small></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'clock' }) %></span><span class="stat-label">ที่จะถึง</span></div>
+    <div class="stat-value"><span id="st-upcoming">0</span> <small>รายการ</small></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'check' }) %></span><span class="stat-label">ผ่านไปแล้ว</span></div>
+    <div class="stat-value"><span id="st-past">0</span> <small>รายการ</small></div>
+  </div>
+</div>
+
+<div class="card card-pad cal">
+  <!-- แถบควบคุม -->
+  <div class="cal-bar">
+    <div class="cal-period">
+      <div class="cal-arrows">
+        <button type="button" class="cal-arrow" id="btn-prev" aria-label="ก่อนหน้า"><%- include('../partials/icon', { name: 'left' }) %></button>
+        <button type="button" class="cal-arrow" id="btn-next" aria-label="ถัดไป"><%- include('../partials/icon', { name: 'right' }) %></button>
+      </div>
+      <h3 class="cal-title" id="cal-title" aria-live="polite">-</h3>
+    </div>
+    <div class="cal-tools">
+      <button type="button" class="btn btn-ghost btn-sm" id="btn-today">วันนี้</button>
+      <div class="cal-tabs" role="group" aria-label="มุมมอง">
+        <button type="button" class="cal-tab" data-view="month" aria-pressed="true">รายเดือน</button>
+        <button type="button" class="cal-tab" data-view="week" aria-pressed="false">รายสัปดาห์</button>
+      </div>
+      <button type="button" class="btn btn-primary btn-sm" id="btn-add"><%- include('../partials/icon', { name: 'plus' }) %>เพิ่มรายการ</button>
+    </div>
+  </div>
+
+  <div class="cal-legend">
+    <span><i class="dot-upcoming"></i>ที่จะถึง</span>
+    <span><i class="dot-today"></i>วันนี้</span>
+    <span><i class="dot-past"></i>ผ่านไปแล้ว</span>
+    <span class="cal-hint">กดที่วันเพื่อดูและจัดการรายการ · ใช้ลูกศร ← → เลื่อนเดือน / สัปดาห์</span>
+  </div>
+
+  <div class="cal-weekdays" id="cal-weekdays" aria-hidden="true"></div>
+  <div id="cal-grid"></div>
+  <div class="cal-note">ยังไม่บันทึกลงฐานข้อมูล — รายการที่เพิ่มจะหายเมื่อรีเฟรชหน้า</div>
+</div>
+
+<!-- popup: รายการของวัน -->
+<dialog class="modal cal-modal" id="day-dialog" aria-labelledby="day-title">
+  <div class="modal-body">
+    <div class="cal-modal-head">
+      <div>
+        <h3 class="modal-title" id="day-title">-</h3>
+        <p class="modal-sub" id="day-sub"></p>
+      </div>
+      <button type="button" class="icon-btn" data-close aria-label="ปิด"><%- include('../partials/icon', { name: 'x' }) %></button>
+    </div>
+    <div class="cal-list" id="day-list"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" data-close>ปิด</button>
+      <button type="button" class="btn btn-primary" id="day-add"><%- include('../partials/icon', { name: 'plus' }) %>เพิ่มในวันนี้</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- popup: เพิ่ม / แก้ไข -->
+<dialog class="modal cal-modal" id="form-dialog" aria-labelledby="form-title">
+  <form class="modal-body" id="ev-form" novalidate autocomplete="off">
+    <div class="cal-modal-head">
+      <h3 class="modal-title" id="form-title">เพิ่มรายการ</h3>
+      <button type="button" class="icon-btn" data-close aria-label="ปิด"><%- include('../partials/icon', { name: 'x' }) %></button>
+    </div>
+    <div class="field">
+      <label class="field-label" for="f-t">หัวข้อ</label>
+      <input class="input" id="f-t" maxlength="100" placeholder="เช่น ประชุมทีม, นัดลูกค้า, ส่งงาน" />
+      <div class="cal-err" data-err="t" hidden></div>
+    </div>
+    <div class="field">
+      <label class="field-label" for="f-d">วันที่</label>
+      <input class="input" type="date" id="f-d" />
+      <div class="cal-err" data-err="d" hidden></div>
+    </div>
+    <%# เลือกช่วงเวลาเป็นชั่วโมงเต็ม (ไม่เลือก = ทั้งวัน) %>
+    <% const hh = (h) => String(h).padStart(2, '0') + ':00'; %>
+    <div class="cal-grid2">
+      <div class="field">
+        <label class="field-label" for="f-s">ตั้งแต่ <span class="muted">(ถ้ามี)</span></label>
+        <select class="input cal-select" id="f-s">
+          <option value="">ทั้งวัน</option>
+          <% for (let h = 0; h <= 23; h++) { %><option value="<%= hh(h) %>"><%= hh(h) %></option><% } %>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-e">ถึง</label>
+        <select class="input cal-select" id="f-e">
+          <option value="">–</option>
+          <% for (let h = 1; h <= 24; h++) { %><option value="<%= hh(h) %>"><%= hh(h) %></option><% } %>
+        </select>
+        <div class="cal-err" data-err="e" hidden></div>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label" for="f-n">สถานที่ / หมายเหตุ <span class="muted">(ถ้ามี)</span></label>
+      <input class="input" id="f-n" maxlength="150" placeholder="เช่น ห้องประชุม 2, Google Meet" />
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button type="submit" class="btn btn-primary" id="form-save">เพิ่มรายการ</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    // ================= วันที่ =================
+    var TH_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    var TH_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    var TH_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+    var TH_DAYS_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function ymd(dt) { return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()); }
+    function parse(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+    function addDays(dt, n) { return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + n); }
+    function be(y) { return y + 543; }
+    function isWeekend(dt) { return dt.getDay() === 0 || dt.getDay() === 6; }
+    var today = new Date(); today = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var TODAY = ymd(today);
+
+    // { id, d: "YYYY-MM-DD", s: "HH:00" | "" (ว่าง = ทั้งวัน), e: "HH:00" | "", t: หัวข้อ, n: สถานที่/หมายเหตุ }
+    var items = [];
+    var nextId = 1;
+
+    // ================= สถานะ / ข้อความ =================
+    function status(it) { return it.d < TODAY ? 'past' : it.d === TODAY ? 'today' : 'upcoming'; }
+    function hoursOf(it) { return it.s && it.e ? parseInt(it.e, 10) - parseInt(it.s, 10) : 0; }
+    function timeText(it) { return it.s ? (it.e ? it.s + '–' + it.e : it.s) : 'ทั้งวัน'; }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    // เรียง: ทั้งวันก่อน → ตามเวลาเริ่ม
+    function byDay(d) {
+      return items.filter(function (it) { return it.d === d; }).sort(function (a, b) {
+        return (a.s || '') < (b.s || '') ? -1 : (a.s || '') > (b.s || '') ? 1 : a.id - b.id;
+      });
+    }
+    function sumHours(list) { return list.reduce(function (n, it) { return n + hoursOf(it); }, 0); }
+
+    // ================= state =================
+    var $ = function (id) { return document.getElementById(id); };
+    var view = 'month';
+    try { if (localStorage.getItem('friction.calView') === 'week') view = 'week'; } catch (e) {}
+    var cursor = new Date(today);
+
+    function range() {
+      if (view === 'month') {
+        var first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+        var last = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0);
+        return { from: first, to: last, gridFrom: addDays(first, -first.getDay()), gridTo: addDays(last, 6 - last.getDay()) };
+      }
+      var start = addDays(cursor, -cursor.getDay());
+      return { from: start, to: addDays(start, 6), gridFrom: start, gridTo: addDays(start, 6) };
+    }
+    function title(r) {
+      if (view === 'month') return TH_MONTHS[r.from.getMonth()] + ' ' + be(r.from.getFullYear());
+      var a = r.from, b = r.to;
+      if (a.getFullYear() !== b.getFullYear()) return a.getDate() + ' ' + TH_MONTHS_SHORT[a.getMonth()] + ' ' + be(a.getFullYear()) + ' – ' + b.getDate() + ' ' + TH_MONTHS_SHORT[b.getMonth()] + ' ' + be(b.getFullYear());
+      if (a.getMonth() !== b.getMonth()) return a.getDate() + ' ' + TH_MONTHS_SHORT[a.getMonth()] + ' – ' + b.getDate() + ' ' + TH_MONTHS_SHORT[b.getMonth()] + ' ' + be(b.getFullYear());
+      return a.getDate() + '–' + b.getDate() + ' ' + TH_MONTHS_SHORT[a.getMonth()] + ' ' + be(a.getFullYear());
+    }
+
+    // ================= วาดปฏิทิน =================
+    function itemHtml(it, full) {
+      var st = status(it);
+      var hrs = timeText(it);
+      var tip = esc(hrs + ' · ' + it.t + (it.n ? ' · ' + it.n : ''));
+      if (full) {
+        return '<span class="cal-item ' + st + '" title="' + tip + '">' + (hrs ? '<span class="tm">' + esc(hrs) + '</span>' : '')
+          + '<span class="t">' + esc(it.t) + '</span>' + (it.n ? '<span class="n">' + esc(it.n) + '</span>' : '') + '</span>';
+      }
+      return '<span class="cal-item ' + st + '" title="' + tip + '">' + (it.s ? '<span class="tm">' + esc(it.s) + '</span>' : '')
+        + '<span class="t">' + esc(it.t) + '</span></span>';
+    }
+
+    function dayHtml(dt, r) {
+      var d = ymd(dt), list = byDay(d);
+      var cls = ['cal-day'];
+      if (view === 'month' && (dt < r.from || dt > r.to)) cls.push('out');
+      if (isWeekend(dt)) cls.push('we');
+      if (d === TODAY) cls.push('today');
+      var aria = 'วัน' + TH_DAYS[dt.getDay()] + 'ที่ ' + dt.getDate() + ' ' + TH_MONTHS[dt.getMonth()]
+        + (list.length ? ' · ' + list.length + ' รายการ' : ' · ไม่มีรายการ');
+
+      var num = '<span class="cal-num">' + dt.getDate() + '</span>';
+      var head = view === 'week' ? '<span class="cal-dayname">' + TH_DAYS[dt.getDay()] + '</span>' + num : num;
+      var html = '<button type="button" class="' + cls.join(' ') + '" data-day="' + d + '" aria-label="' + esc(aria) + '">'
+        + '<span class="cal-day-top">' + head
+        + (view === 'month' && list.length ? '<span class="cal-count">' + list.length + '</span>' : '')
+        + '</span>';
+
+      if (view === 'month') {
+        html += '<span class="cal-items">' + list.slice(0, 3).map(function (it) { return itemHtml(it, false); }).join('')
+          + (list.length > 3 ? '<span class="cal-more">+' + (list.length - 3) + ' รายการ</span>' : '') + '</span>'
+          + '<span class="cal-dots" aria-hidden="true">' + list.slice(0, 6).map(function (it) { return '<i class="dot-' + status(it) + '"></i>'; }).join('') + '</span>';
+      } else {
+        html += '<span class="cal-items">' + (list.length ? list.map(function (it) { return itemHtml(it, true); }).join('') : '<span class="cal-empty-day">ไม่มีรายการ</span>') + '</span>';
+      }
+      return html + '</button>';
+    }
+
+    function render() {
+      var r = range();
+      $('cal-title').textContent = title(r);
+      document.querySelectorAll('[data-view]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === view)); });
+      $('btn-prev').setAttribute('aria-label', view === 'month' ? 'เดือนก่อน' : 'สัปดาห์ก่อน');
+      $('btn-next').setAttribute('aria-label', view === 'month' ? 'เดือนถัดไป' : 'สัปดาห์ถัดไป');
+
+      $('cal-weekdays').hidden = view !== 'month';
+      $('cal-weekdays').innerHTML = TH_DAYS_SHORT.map(function (n, i) { return '<div class="' + (i === 0 || i === 6 ? 'we' : '') + '">' + n + '</div>'; }).join('');
+
+      var html = '';
+      for (var dt = r.gridFrom; dt <= r.gridTo; dt = addDays(dt, 1)) html += dayHtml(dt, r);
+      $('cal-grid').className = view === 'month' ? 'cal-month' : 'cal-week';
+      $('cal-grid').innerHTML = html;
+
+      // สรุปของช่วงที่ดู (รายเดือน = เฉพาะวันในเดือน)
+      var from = ymd(r.from), to = ymd(r.to);
+      var cnt = { total: 0, today: 0, upcoming: 0, past: 0 };
+      items.forEach(function (it) {
+        if (it.d < from || it.d > to) return;
+        cnt.total++; cnt[status(it)]++;
+      });
+      $('st-total-label').textContent = view === 'month' ? 'ทั้งเดือน' : 'ทั้งสัปดาห์';
+      Object.keys(cnt).forEach(function (k) { $('st-' + k).textContent = cnt[k]; });
+    }
+
+    // ================= เลื่อนช่วงเวลา =================
+    function shift(dir) {
+      cursor = view === 'month' ? new Date(cursor.getFullYear(), cursor.getMonth() + dir, 1) : addDays(cursor, dir * 7);
+      render();
+    }
+    $('btn-prev').addEventListener('click', function () { shift(-1); });
+    $('btn-next').addEventListener('click', function () { shift(1); });
+    $('btn-today').addEventListener('click', function () { cursor = new Date(today); render(); });
+    document.querySelectorAll('[data-view]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        // รายเดือน → รายสัปดาห์: เดือนที่ดูไม่ใช่เดือนนี้ → ใช้สัปดาห์แรกของเดือนนั้น
+        if (b.dataset.view === 'week' && view === 'month' && !(cursor.getFullYear() === today.getFullYear() && cursor.getMonth() === today.getMonth())) {
+          cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+        }
+        view = b.dataset.view;
+        try { localStorage.setItem('friction.calView', view); } catch (e) {}
+        render();
+      });
+    });
+    // ลูกศรซ้าย / ขวา (ไม่ทำงานตอนพิมพ์ในช่องกรอก หรือเปิด popup อยู่)
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (document.querySelector('.cal-modal[open]')) return;
+      var tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+      e.preventDefault();
+      shift(e.key === 'ArrowLeft' ? -1 : 1);
+    });
+
+    // ================= popup: รายการของวัน =================
+    var dayDlg = $('day-dialog'), formDlg = $('form-dialog'), form = $('ev-form');
+    var openDay = null, editingId = null;
+    var ICON = {
+      edit: <%- JSON.stringify(include('../partials/icon', { name: 'edit' })) %>,
+      del: <%- JSON.stringify(include('../partials/icon', { name: 'trash' })) %>,
+    };
+    var STATUS_LABEL = { upcoming: 'ที่จะถึง', today: 'วันนี้', past: 'ผ่านไปแล้ว' };
+
+    function renderDay() {
+      var dt = parse(openDay), list = byDay(openDay);
+      $('day-title').textContent = 'วัน' + TH_DAYS[dt.getDay()] + 'ที่ ' + dt.getDate() + ' ' + TH_MONTHS[dt.getMonth()] + ' ' + be(dt.getFullYear());
+      var hrs = sumHours(list);
+      $('day-sub').textContent = list.length ? list.length + ' รายการ' + (hrs ? ' · รวม ' + String(hrs).replace(/\.0$/, '') + ' ชม.' : '') : 'ยังไม่มีรายการในวันนี้';
+      $('day-list').innerHTML = list.length ? list.map(function (it) {
+        var st = status(it);
+        return '<div class="cal-row ' + st + '" data-id="' + it.id + '">'
+          + '<div class="cal-row-time">' + esc(timeText(it)) + '</div>'
+          + '<div class="cal-row-main"><div class="cal-row-t">' + esc(it.t) + '</div>' + (it.n ? '<div class="cal-row-n">' + esc(it.n) + '</div>' : '') + '</div>'
+          + '<span class="cal-st cal-st-' + st + '">' + STATUS_LABEL[st] + '</span>'
+          + '<div class="cal-row-actions">'
+          + '<button type="button" class="icon-btn" data-act="edit" title="แก้ไข" aria-label="แก้ไข ' + esc(it.t) + '">' + ICON.edit + '</button>'
+          + '<button type="button" class="icon-btn" data-act="delete" title="ลบ" aria-label="ลบ ' + esc(it.t) + '">' + ICON.del + '</button>'
+          + '</div></div>';
+      }).join('') : '<div class="cal-none">ไม่มีรายการ · กด "เพิ่มในวันนี้" เพื่อเพิ่ม</div>';
+    }
+    function showDay(d) {
+      openDay = d;
+      renderDay();
+      if (!dayDlg.open) dayDlg.showModal();
+    }
+    function refresh() {
+      render();
+      if (openDay) renderDay();
+    }
+
+    $('cal-grid').addEventListener('click', function (e) {
+      var cell = e.target.closest('[data-day]');
+      if (cell) showDay(cell.dataset.day);
+    });
+    $('day-list').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      var id = +btn.closest('[data-id]').dataset.id;
+      var it = items.find(function (x) { return x.id === id; });
+      if (!it) return;
+      if (btn.dataset.act === 'edit') openForm(it, null);
+      if (btn.dataset.act === 'delete' && confirm('ลบรายการ "' + it.t + '" ใช่หรือไม่?')) {
+        items = items.filter(function (x) { return x.id !== id; });
+        refresh();
+      }
+    });
+    $('day-add').addEventListener('click', function () { openForm(null, openDay); });
+    dayDlg.addEventListener('close', function () { openDay = null; });
+
+    // ================= popup: เพิ่ม / แก้ไข =================
+    function showErr(k, msg) {
+      var el = form.querySelector('[data-err="' + k + '"]');
+      el.textContent = msg || '';
+      el.hidden = !msg;
+      $('f-' + k).classList.toggle('invalid', !!msg);
+    }
+    function openForm(it, date) {
+      editingId = it ? it.id : null;
+      $('form-title').textContent = it ? 'แก้ไขรายการ' : 'เพิ่มรายการ';
+      $('form-save').textContent = it ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ';
+      $('f-t').value = it ? it.t : '';
+      $('f-d').value = it ? it.d : (date || TODAY);
+      $('f-s').value = it ? it.s : '';
+      $('f-e').value = it ? it.e : '';
+      syncEnd();
+      $('f-n').value = it ? it.n : '';
+      ['t', 'd', 'e'].forEach(function (k) { showErr(k, ''); });
+      formDlg.showModal();
+      $('f-t').focus();
+    }
+    $('btn-add').addEventListener('click', function () { openForm(null, null); });
+
+    // "ถึง" ต้องหลัง "ตั้งแต่" · ทั้งวัน = ปิดช่อง "ถึง" · เลือกเริ่มใหม่ → ตั้ง "ถึง" เป็น +1 ชม. ถ้ายังไม่ถูก
+    function syncEnd() {
+      var s = $('f-s').value, end = $('f-e');
+      end.disabled = !s;
+      Array.prototype.forEach.call(end.options, function (o) { o.disabled = !!(s && o.value && o.value <= s); });
+      if (!s) end.value = '';
+      else if (!end.value || end.value <= s) end.value = ('0' + (parseInt(s, 10) + 1)).slice(-2) + ':00';
+    }
+    $('f-s').addEventListener('change', function () { syncEnd(); showErr('e', ''); });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var t = $('f-t').value.trim(), d = $('f-d').value, s = $('f-s').value, en = $('f-e').value;
+      showErr('t', t ? '' : 'กรุณากรอกหัวข้อ');
+      showErr('d', /^\d{4}-\d{2}-\d{2}$/.test(d) ? '' : 'กรุณาเลือกวันที่');
+      showErr('e', s && en && en <= s ? 'เวลา "ถึง" ต้องหลังเวลาเริ่ม' : '');
+      var bad = form.querySelector('.input.invalid');
+      if (bad) { bad.focus(); return; }
+
+      var data = { d: d, s: s, e: s ? en : '', t: t, n: $('f-n').value.trim() };
+      if (editingId) Object.assign(items.find(function (x) { return x.id === editingId; }), data);
+      else items.push(Object.assign({ id: nextId++ }, data));
+      formDlg.close();
+      // เลื่อนไปช่วงที่มีวันนั้น · ถ้าเปิดรายการของวันอยู่ ให้ตามไปวันใหม่
+      cursor = parse(d);
+      if (openDay) openDay = d;
+      refresh();
+    });
+
+    document.querySelectorAll('.cal-modal [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { b.closest('dialog').close(); });
+    });
+    // คลิกพื้นหลังนอก popup → ปิด
+    [dayDlg, formDlg].forEach(function (dlg) {
+      dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+    });
+
+    render();
+  })();
+</script>

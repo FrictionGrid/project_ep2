@@ -1,0 +1,356 @@
+<%# Task รายสัปดาห์: ข้อมูลจากตาราง tasks · JS วาดรายการ/กรอง · ทุกการบันทึกส่งฟอร์ม POST แล้วเด้งกลับ (PRG) %>
+
+<!-- สรุปสัปดาห์ (JS คำนวณจากรายการ) -->
+<div class="stat-grid stat-grid-3">
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'task' }) %></span><span class="stat-label">เสร็จแล้ว</span></div>
+    <div class="stat-value"><span id="tk-done">0</span> <small>/ <span id="tk-total">0</span> task</small></div>
+    <div class="stat-bar"><span id="tk-done-bar" style="width: 0%"></span></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'star' }) %></span><span class="stat-label">คะแนนเฉลี่ย</span></div>
+    <div class="stat-value"><span id="tk-avg">–</span> <small>/ 10</small></div>
+    <div class="stat-bar"><span id="tk-avg-bar" style="width: 0%"></span></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'check' }) %></span><span class="stat-label">ตรวจแล้ว</span></div>
+    <div class="stat-value"><span id="tk-reviewed">0</span> <small>/ <span id="tk-total-2">0</span> task</small></div>
+    <div class="stat-bar"><span id="tk-reviewed-bar" style="width: 0%"></span></div>
+  </div>
+</div>
+
+<div class="card">
+  <!-- กรอง -->
+  <div class="tk-toolbar">
+    <div class="tk-tabs" role="tablist" aria-label="กรองตามความเร่งด่วน">
+      <button type="button" class="tk-tab is-active" data-filter="all">ทั้งหมด <span data-count="all">0</span></button>
+      <button type="button" class="tk-tab" data-filter="urgent">ด่วนมาก <span data-count="urgent">0</span></button>
+      <button type="button" class="tk-tab" data-filter="high">ด่วน <span data-count="high">0</span></button>
+      <button type="button" class="tk-tab" data-filter="normal">ทั่วไป <span data-count="normal">0</span></button>
+    </div>
+    <div class="tk-toolbar-right">
+      <label class="tk-hide-done"><input type="checkbox" id="tk-hide-done" /> ซ่อนที่เสร็จแล้ว</label>
+      <button type="button" class="btn btn-primary btn-sm" id="tk-new"><%- include('../partials/icon', { name: 'plus' }) %>เพิ่ม task</button>
+    </div>
+  </div>
+
+  <ul class="tk-list" id="tk-list"></ul>
+
+  <div class="tk-empty" id="tk-empty" hidden>
+    <div class="tk-empty-icon"><%- include('../partials/icon', { name: 'task' }) %></div>
+    <div class="tk-empty-title" id="tk-empty-title">ยังไม่มี task สัปดาห์นี้</div>
+    <div class="muted" id="tk-empty-text">กดปุ่ม "เพิ่ม task" เพื่อเริ่มวางแผนงาน</div>
+  </div>
+</div>
+
+<!-- popup ตรวจงาน -->
+<dialog class="modal" id="tk-review" aria-labelledby="tk-review-title">
+  <form method="POST" class="modal-body" id="tk-review-form">
+    <input type="hidden" name="week" value="<%= weekStart %>" />
+    <div>
+      <h3 class="modal-title" id="tk-review-title">ตรวจงาน</h3>
+      <p class="modal-sub" id="tk-review-task"></p>
+    </div>
+    <fieldset class="seg-field">
+      <legend>คะแนน <span class="muted">(0–10)</span></legend>
+      <div class="tk-score-grid" id="tk-score-grid">
+        <% for (let i = 0; i <= 10; i++) { %>
+          <label><input type="radio" name="score" value="<%= i %>" required /><span><%= i %></span></label>
+        <% } %>
+      </div>
+    </fieldset>
+    <div class="field">
+      <label class="field-label" for="tk-comment">คอมเมนต์ <span class="muted">(ถ้ามี)</span></label>
+      <textarea class="input tk-textarea" id="tk-comment" name="comment" rows="3" maxlength="500" placeholder="เช่น ดีมาก แต่ควรเพิ่ม…"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost tk-foot-left" id="tk-review-clear">ล้างคะแนน</button>
+      <button type="button" class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button type="submit" class="btn btn-primary">บันทึกคะแนน</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- popup เพิ่ม / แก้ไข / ลบ task (ใช้ตัวเดียวกัน · JS สลับโหมด) -->
+<dialog class="modal" id="tk-edit" aria-labelledby="tk-edit-title">
+  <form method="POST" action="/tasks" class="modal-body" id="tk-edit-form">
+    <input type="hidden" name="week" value="<%= weekStart %>" />
+    <h3 class="modal-title" id="tk-edit-title">เพิ่ม task</h3>
+    <div class="field">
+      <label class="field-label" for="tk-edit-name">ชื่อ task</label>
+      <input class="input" type="text" id="tk-edit-name" name="title" maxlength="200" required placeholder="เช่น แก้บั๊กหน้าจ่ายเงิน" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="tk-edit-detail">รายละเอียด <span class="muted">(ถ้ามี)</span></label>
+      <textarea class="input tk-textarea" id="tk-edit-detail" name="detail" rows="3" maxlength="500" placeholder="รายละเอียดเพิ่มเติม"></textarea>
+    </div>
+    <fieldset class="seg-field">
+      <legend>วันที่ต้องเสร็จ</legend>
+      <div class="tk-day-grid">
+        <% weekDays.forEach(function (d) { %>
+          <label class="<%= d.date === today ? 'is-today' : '' %>">
+            <input type="radio" name="due" value="<%= d.date %>" required />
+            <span><small><%= d.short %></small><b><%= d.day %></b></span>
+          </label>
+        <% }) %>
+      </div>
+    </fieldset>
+    <fieldset class="seg-field">
+      <legend>กะ</legend>
+      <div class="seg" id="tk-shift-seg">
+        <label><input type="radio" name="shift" value="day" /><span>กะกลางวัน</span></label>
+        <label><input type="radio" name="shift" value="night" /><span>กะกลางคืน</span></label>
+      </div>
+      <p class="muted tk-shift-note" id="tk-shift-note" hidden>วันศุกร์ไม่มีกะกลางคืน</p>
+    </fieldset>
+    <fieldset class="seg-field">
+      <legend>ความเร่งด่วน</legend>
+      <div class="seg">
+        <label><input type="radio" name="priority" value="urgent" /><span>ด่วนมาก</span></label>
+        <label><input type="radio" name="priority" value="high" /><span>ด่วน</span></label>
+        <label><input type="radio" name="priority" value="normal" /><span>ทั่วไป</span></label>
+      </div>
+    </fieldset>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost tk-foot-left tk-delete" id="tk-edit-delete"><%- include('../partials/icon', { name: 'trash' }) %>ลบ task</button>
+      <button type="button" class="btn btn-ghost" data-close>ยกเลิก</button>
+      <button type="submit" class="btn btn-primary" id="tk-edit-submit">เพิ่ม task</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ฟอร์มกลาง: ติ๊กเสร็จ / ลบ / ล้างคะแนน (JS ตั้ง action แล้วส่ง) -->
+<form method="POST" id="tk-action" hidden><input type="hidden" name="week" value="<%= weekStart %>" /></form>
+
+<!-- ไอคอนให้ JS โคลนไปใช้ในแต่ละแถว -->
+<template id="tpl-check"><%- include('../partials/icon', { name: 'check', stroke: 2.6 }) %></template>
+<template id="tpl-more"><%- include('../partials/icon', { name: 'more', stroke: 2.4 }) %></template>
+<template id="tpl-star"><%- include('../partials/icon', { name: 'star' }) %></template>
+
+<script type="application/json" id="tk-days"><%- JSON.stringify({ today: today, days: weekDays }).replace(/</g, '\\u003c') %></script>
+<script type="application/json" id="tk-data"><%- JSON.stringify(tasks).replace(/</g, '\\u003c') %></script>
+
+<script>
+  (function () {
+    var PRIO = {
+      urgent: { label: 'ด่วนมาก', order: 0 },
+      high:   { label: 'ด่วน',    order: 1 },
+      normal: { label: 'ทั่วไป',   order: 2 },
+    };
+    var tasks = JSON.parse(document.getElementById('tk-data').textContent);
+    var WEEK = JSON.parse(document.getElementById('tk-days').textContent);
+    var DAY = {};
+    WEEK.days.forEach(function (d) { DAY[d.date] = d; });
+    // วันเริ่มต้นตอนเพิ่ม task: วันนี้ (ถ้าอยู่ในสัปดาห์ที่ดู) ไม่งั้นวันแรกของสัปดาห์
+    var DEFAULT_DUE = DAY[WEEK.today] ? WEEK.today : WEEK.days[0].date;
+    // ตัวกรองจำไว้ในแท็บนี้ (หน้าโหลดใหม่ทุกครั้งที่บันทึก)
+    var store = {
+      get: function (k) { try { return sessionStorage.getItem('tk.' + k); } catch (e) { return null; } },
+      set: function (k, v) { try { sessionStorage.setItem('tk.' + k, v); } catch (e) {} },
+    };
+    var filter = PRIO[store.get('filter')] ? store.get('filter') : 'all';
+    var hideDone = store.get('hideDone') === '1';
+
+    var $ = function (id) { return document.getElementById(id); };
+    var list = $('tk-list');
+    var tpl = function (id) { return $(id).content.firstElementChild.cloneNode(true); };
+    var el = function (tag, cls, text) {
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    };
+    // ส่งฟอร์มกลาง (ติ๊กเสร็จ / ลบ / ล้างคะแนน)
+    var actionForm = $('tk-action');
+    function post(url) {
+      actionForm.action = url;
+      actionForm.submit();
+    }
+
+    // ---------- วาดหน้าใหม่ทั้งหมดจาก state ----------
+    function render() {
+      var sorted = tasks.slice().sort(function (a, b) {
+        return PRIO[a.priority].order - PRIO[b.priority].order || (a.done - b.done) ||
+          (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0) || a.id - b.id;
+      });
+      var shown = sorted.filter(function (t) {
+        return (filter === 'all' || t.priority === filter) && !(hideDone && t.done);
+      });
+
+      list.innerHTML = '';
+      shown.forEach(function (t) { list.appendChild(row(t)); });
+
+      // สถานะว่าง
+      var empty = !shown.length;
+      $('tk-empty').hidden = !empty;
+      if (empty) {
+        $('tk-empty-title').textContent = tasks.length ? 'ไม่มี task ที่ตรงกับตัวกรอง' : 'ยังไม่มี task สัปดาห์นี้';
+        $('tk-empty-text').textContent = tasks.length ? 'ลองเปลี่ยนแท็บ หรือเลิกซ่อนงานที่เสร็จแล้ว' : 'กดปุ่ม "เพิ่ม task" เพื่อเริ่มวางแผนงาน';
+      }
+
+      // จำนวนในแท็บ
+      document.querySelectorAll('[data-count]').forEach(function (s) {
+        var k = s.dataset.count;
+        s.textContent = tasks.filter(function (t) { return k === 'all' || t.priority === k; }).length;
+      });
+
+      // การ์ดสรุป
+      var total = tasks.length;
+      var done = tasks.filter(function (t) { return t.done; }).length;
+      var scored = tasks.filter(function (t) { return t.score != null; });
+      var avg = scored.length ? scored.reduce(function (n, t) { return n + t.score; }, 0) / scored.length : null;
+      var pct = function (a, b) { return (b ? Math.round(a / b * 100) : 0) + '%'; };
+      $('tk-total').textContent = $('tk-total-2').textContent = total;
+      $('tk-done').textContent = done;
+      $('tk-done-bar').style.width = pct(done, total);
+      $('tk-avg').textContent = avg == null ? '–' : (Math.round(avg * 10) / 10).toFixed(1).replace(/\.0$/, '');
+      $('tk-avg-bar').style.width = avg == null ? '0%' : (avg * 10) + '%';
+      $('tk-reviewed').textContent = scored.length;
+      $('tk-reviewed-bar').style.width = pct(scored.length, total);
+    }
+
+    function row(t) {
+      var li = el('li', 'tk-item' + (t.done ? ' is-done' : ''));
+
+      var check = el('button', 'tk-check');
+      check.type = 'button';
+      check.setAttribute('aria-pressed', t.done);
+      check.setAttribute('aria-label', (t.done ? 'ยกเลิกเสร็จ: ' : 'ทำเสร็จ: ') + t.title);
+      check.appendChild(tpl('tpl-check'));
+      check.addEventListener('click', function () {
+        check.disabled = true;
+        li.classList.toggle('is-done'); // ตอบสนองทันที ระหว่างรอหน้าโหลด
+        post('/tasks/' + t.id + '/toggle');
+      });
+
+      var main = el('div', 'tk-main');
+      var head = el('div', 'tk-head');
+      head.appendChild(el('span', 'tk-prio tk-prio-' + t.priority, PRIO[t.priority].label));
+      head.appendChild(el('span', 'tk-title', t.title));
+      main.appendChild(head);
+
+
+      var score = el('div', 'tk-score');
+      if (t.score == null) {
+        score.appendChild(el('span', 'tk-score-pill is-none', 'ยังไม่ตรวจ'));
+      } else {
+        var pill = el('span', 'tk-score-pill');
+        pill.appendChild(tpl('tpl-star'));
+        pill.appendChild(el('b', null, t.score));
+        pill.appendChild(el('span', null, '/10'));
+        score.appendChild(pill);
+      }
+
+      var actions = el('div', 'tk-actions');
+      var review = el('button', 'wt-leave-btn', t.score == null ? 'ตรวจงาน' : 'แก้คะแนน');
+      review.type = 'button';
+      review.addEventListener('click', function () { openReview(t); });
+      var more = el('button', 'icon-btn tk-more');
+      more.type = 'button';
+      more.setAttribute('aria-label', 'แก้ไข / ลบ: ' + t.title);
+      more.appendChild(tpl('tpl-more'));
+      more.addEventListener('click', function () { openEdit(t); });
+      actions.appendChild(review);
+      actions.appendChild(more);
+
+      li.appendChild(check);
+      li.appendChild(main);
+      li.appendChild(score);
+      li.appendChild(actions);
+      return li;
+    }
+
+    // ---------- กรอง ----------
+    function syncTabs() {
+      document.querySelectorAll('.tk-tab').forEach(function (x) { x.classList.toggle('is-active', x.dataset.filter === filter); });
+    }
+    document.querySelectorAll('.tk-tab').forEach(function (b) {
+      b.addEventListener('click', function () {
+        filter = b.dataset.filter;
+        store.set('filter', filter);
+        syncTabs();
+        render();
+      });
+    });
+    $('tk-hide-done').checked = hideDone;
+    $('tk-hide-done').addEventListener('change', function (e) {
+      hideDone = e.target.checked;
+      store.set('hideDone', hideDone ? '1' : '0');
+      render();
+    });
+    syncTabs();
+
+    // ---------- popup ตรวจงาน ----------
+    var reviewDlg = $('tk-review'), reviewForm = $('tk-review-form'), current = null;
+    function openReview(t) {
+      current = t;
+      reviewForm.action = '/tasks/' + t.id + '/review';
+      $('tk-review-task').textContent = t.title;
+      reviewForm.querySelectorAll('input[name=score]').forEach(function (r) { r.checked = t.score != null && +r.value === t.score; });
+      reviewForm.comment.value = t.comment || '';
+      $('tk-review-clear').hidden = t.score == null;
+      reviewDlg.showModal();
+      (reviewForm.querySelector('input[name=score]:checked') || reviewForm.querySelector('input[name=score]')).focus();
+    }
+    $('tk-review-clear').addEventListener('click', function () {
+      if (current) post('/tasks/' + current.id + '/review/clear');
+    });
+
+    // ---------- popup เพิ่ม / แก้ไข / ลบ ----------
+    // openEdit(null) = เพิ่ม task ใหม่ · openEdit(task) = แก้ไข task นั้น
+    var editDlg = $('tk-edit'), editForm = $('tk-edit-form');
+    function openEdit(t) {
+      current = t;
+      var isNew = !t;
+      $('tk-edit-title').textContent = isNew ? 'เพิ่ม task' : 'แก้ไข task';
+      $('tk-edit-submit').textContent = isNew ? 'เพิ่ม task' : 'บันทึก';
+      $('tk-edit-delete').hidden = isNew;
+      editForm.action = isNew ? '/tasks' : '/tasks/' + t.id + '/edit';
+      editForm.elements.title.value = isNew ? '' : t.title;
+      editForm.detail.value = isNew ? '' : (t.detail || '');
+      editForm.querySelector('input[name=priority][value=' + (isNew ? 'normal' : t.priority) + ']').checked = true;
+      var dueVal = isNew || !DAY[t.dueDate] ? DEFAULT_DUE : t.dueDate;
+      editForm.querySelectorAll('input[name=due]').forEach(function (r) { r.checked = r.value === dueVal; });
+      editForm.querySelector('input[name=shift][value=' + (isNew ? 'day' : (t.shift || 'day')) + ']').checked = true;
+      syncShift();
+      editDlg.showModal();
+      editForm.elements.title.focus();
+    }
+    $('tk-new').addEventListener('click', function () { openEdit(null); });
+
+    // วันศุกร์ไม่มีกะกลางคืน → ปิดตัวเลือกกลางคืน แล้วสลับเป็นกลางวัน
+    function syncShift() {
+      var due = editForm.querySelector('input[name=due]:checked');
+      var isFri = !!due && new Date(due.value + 'T00:00:00Z').getUTCDay() === 5;
+      var night = editForm.querySelector('input[name=shift][value=night]');
+      night.disabled = isFri;
+      if (isFri && night.checked) editForm.querySelector('input[name=shift][value=day]').checked = true;
+      $('tk-shift-note').hidden = !isFri;
+    }
+    editForm.querySelectorAll('input[name=due]').forEach(function (r) { r.addEventListener('change', syncShift); });
+
+    // ชื่อมีแต่ช่องว่าง → ไม่ส่ง · กันกดส่งซ้ำ
+    [editForm, reviewForm].forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        if (f === editForm && !editForm.elements.title.value.trim()) {
+          e.preventDefault();
+          editForm.elements.title.value = '';
+          return editForm.elements.title.focus();
+        }
+        f.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+      });
+    });
+    $('tk-edit-delete').addEventListener('click', function () {
+      if (!current || !confirm('ลบ task "' + current.title + '" ?')) return;
+      post('/tasks/' + current.id + '/delete');
+    });
+
+    // ปิด popup: ปุ่มยกเลิก / คลิกพื้นหลัง
+    [reviewDlg, editDlg].forEach(function (d) {
+      d.querySelector('[data-close]').addEventListener('click', function () { d.close(); });
+      d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+    });
+
+    render();
+  })();
+</script>

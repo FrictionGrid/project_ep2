@@ -1,0 +1,289 @@
+<%# Chatbot: ซ้าย = แชททั้งหมด (เลือก / แชทใหม่ / ค้นหา) · ขวา = กล่องแชทที่เลือก
+    ⚠️ หน้าบ้านอย่างเดียว: แชทตัวอย่าง + คำตอบ hardcode ใน JS ด้านล่าง (ยังไม่ต่อ AI / DB · รีเฟรชแล้วกลับเป็นค่าเดิม) %>
+<% const me = locals.user || { name: '' }; %>
+
+<section class="card chat" id="chat" aria-label="แชทบอท">
+  <!-- ===== แชททั้งหมด ===== -->
+  <aside class="chat-side" aria-label="แชททั้งหมด">
+    <div class="chat-side-head">
+      <div class="chat-side-title">แชททั้งหมด <span class="muted" id="chat-total">0</span></div>
+      <button type="button" class="btn btn-primary btn-sm" id="chat-new"><%- include('../partials/icon', { name: 'plus' }) %>แชทใหม่</button>
+    </div>
+    <div class="chat-search">
+      <%- include('../partials/icon', { name: 'search', cls: 'chat-search-icon' }) %>
+      <input class="input" type="search" id="chat-search" placeholder="ค้นหาแชท…" aria-label="ค้นหาแชท" />
+    </div>
+    <ul class="chat-convos" id="chat-convos"></ul>
+    <p class="chat-convos-empty" id="chat-convos-empty" hidden>ไม่พบแชทที่ค้นหา</p>
+  </aside>
+
+  <!-- ===== กล่องแชท ===== -->
+  <div class="chat-main">
+    <header class="chat-head">
+      <button type="button" class="icon-btn chat-back" id="chat-back" aria-label="กลับไปแชททั้งหมด"><%- include('../partials/icon', { name: 'left' }) %></button>
+      <span class="chat-avatar chat-avatar-lg"><img src="/images/logo-mark.png" alt="" /></span>
+      <div class="chat-head-meta">
+        <div class="chat-head-name" id="chat-title">Friction Assistant</div>
+        <div class="chat-head-status"><i aria-hidden="true"></i>Friction Assistant · ออนไลน์</div>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="chat-delete"><%- include('../partials/icon', { name: 'trash' }) %>ลบแชทนี้</button>
+    </header>
+
+    <div class="chat-body" id="chat-body" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+    <footer class="chat-foot">
+      <form class="chat-form" id="chat-form" autocomplete="off">
+        <textarea class="input chat-input" id="chat-input" rows="1" maxlength="1000" placeholder="พิมพ์ข้อความ… (Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่)" aria-label="ข้อความ"></textarea>
+        <button type="submit" class="btn btn-primary chat-send" id="chat-send" aria-label="ส่ง" disabled><%- include('../partials/icon', { name: 'send' }) %></button>
+      </form>
+      <p class="chat-note">แชทนี้เป็นตัวอย่าง (ยังไม่เชื่อม AI) — คำตอบถูกตั้งไว้ล่วงหน้า</p>
+    </footer>
+  </div>
+</section>
+
+<template id="tpl-arrow"><%- include('../partials/icon', { name: 'arrow' }) %></template>
+<script type="application/json" id="chat-me"><%- JSON.stringify({ name: me.name || '' }).replace(/</g, '\\u003c') %></script>
+
+<script>
+  (function () {
+    var ME = JSON.parse(document.getElementById('chat-me').textContent);
+    var BOT_AVATAR = '/images/logo-mark.png';
+    var NEW_TITLE = 'แชทใหม่';
+
+    // ================= คำตอบ hardcode: จับคำสำคัญ (ข้อแรกที่ตรงชนะ) =================
+    var LINK = {
+      worktime: { href: '/worktime', label: 'ไปหน้า Timesheet' },
+      tasks: { href: '/tasks', label: 'ไปหน้า Tasks' },
+      calendar: { href: '/calendar', label: 'ไปหน้า Calendar' },
+    };
+    var RULES = [
+      { match: /สวัสดี|หวัดดี|hello|hi\b/i,
+        reply: 'สวัสดีครับ ถามเรื่องลงเวลา การลา task หรือปฏิทินได้เลยครับ' },
+      // ระวัง: "ลงเวลา" มีคำว่า "ลา" อยู่ข้างใน → จับเฉพาะคำที่หมายถึงการลาจริงๆ
+      { match: /ลางาน|การลา|ขอลา|วันลา|ลาป่วย|ลากิจ|ลาพักร้อน|^ลา/,
+        reply: 'การลางาน: ไปที่หน้า Timesheet แล้วกดปุ่ม "ลางาน" ในแถวของวันนั้น\nเลือกได้ว่าจะลากะกลางวัน กะกลางคืน หรือทั้งวัน ลาเต็มกะหรือบางชั่วโมง และต้องใส่เหตุผลทุกครั้ง',
+        link: LINK.worktime },
+      { match: /ชั่วโมง|ชม\.?|ลงเวลา|เข้างาน|timesheet/i,
+        reply: 'ชั่วโมงทำงานเต็มสัปดาห์คือ 75 ชม.\n• เสาร์ 3+3 ชม.\n• อาทิตย์–พฤหัส 9+3 ชม.\n• ศุกร์ 9 ชม. (ไม่มีกะกลางคืน)\nดูยอดที่ลงไปแล้วของสัปดาห์นี้ได้ที่หน้า Timesheet ครับ',
+        link: LINK.worktime },
+      { match: /task|งาน|ทาส/i,
+        reply: 'task ที่ครบกำหนดวันนี้และงานที่ค้างอยู่ จะขึ้นในกล่อง "Task วันนี้" บน Dashboard ติ๊กเสร็จได้จากตรงนั้นเลย\nถ้าจะเพิ่ม แก้ไข หรือให้คะแนน ไปที่หน้า Tasks ครับ',
+        link: LINK.tasks },
+      { match: /ปฏิทิน|ปฎิทิน|นัด|calendar|ประชุม/i,
+        reply: 'หน้า Calendar ดูได้ทั้งรายเดือนและรายสัปดาห์\nกดที่วันเพื่อดูรายการ หรือกด "เพิ่มรายการ" แล้วเลือกช่วงเวลาเป็นชั่วโมง (ไม่เลือก = ทั้งวัน)',
+        link: LINK.calendar },
+      { match: /ขอบคุณ|thank/i,
+        reply: 'ยินดีครับ มีอะไรถามเพิ่มได้ตลอดเลยครับ' },
+    ];
+    var FALLBACK = 'ขอโทษครับ ตอนนี้ยังตอบเรื่องนี้ไม่ได้\nลองถามเรื่อง ลงเวลา, การลา, task หรือปฏิทิน ดูครับ';
+    function answer(text) {
+      for (var i = 0; i < RULES.length; i++) if (RULES[i].match.test(text)) return RULES[i];
+      return { reply: FALLBACK };
+    }
+
+    // ================= เวลา =================
+    function pad(n) { return ('0' + n).slice(-2); }
+    function hm(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    function ago(mins) { return new Date(Date.now() - mins * 60000); }
+    function sameDay(a, b) { return a.toDateString() === b.toDateString(); }
+    var TH_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    function dayLabel(d) {
+      var now = new Date();
+      if (sameDay(d, now)) return 'วันนี้';
+      if (sameDay(d, new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) return 'เมื่อวาน';
+      return d.getDate() + ' ' + TH_MONTHS_SHORT[d.getMonth()];
+    }
+    // เวลาในรายการแชท: วันนี้ = 10:24 · ก่อนหน้า = เมื่อวาน / 17 พ.ย.
+    function listTime(d) { return sameDay(d, new Date()) ? hm(d) : dayLabel(d); }
+
+    // ================= แชทตัวอย่าง =================
+    // message = { who: 'bot' | 'me', text, link?, at: Date }
+    function greeting(at) {
+      return { who: 'bot', text: 'สวัสดีครับ' + (ME.name ? ' ' + ME.name : '') + '\nผม Friction Assistant มีอะไรให้ช่วยไหมครับ', at: at };
+    }
+    function qa(q, at) {
+      var r = answer(q);
+      return [{ who: 'me', text: q, at: at }, { who: 'bot', text: r.reply, link: r.link, at: new Date(at.getTime() + 2000) }];
+    }
+    var nextId = 1;
+    function convo(title, messages) { return { id: nextId++, title: title, messages: messages }; }
+    var convos = [
+      convo('ชั่วโมงทำงานสัปดาห์นี้', [greeting(ago(42))].concat(qa('สัปดาห์นี้ลงเวลาไปกี่ชั่วโมง?', ago(41)))),
+      convo('วิธีลางาน', [greeting(ago(60 * 26))].concat(qa('ลางานยังไง?', ago(60 * 26 - 1)), qa('ขอบคุณครับ', ago(60 * 26 - 3)))),
+      convo('ใช้ปฏิทินยังไง', [greeting(ago(60 * 24 * 3))].concat(qa('ใช้ปฏิทินยังไง?', ago(60 * 24 * 3 - 1)))),
+    ];
+    var currentId = convos[0].id;
+
+    // ================= DOM =================
+    var $ = function (id) { return document.getElementById(id); };
+    var root = $('chat'), body = $('chat-body'), form = $('chat-form'), input = $('chat-input'), send = $('chat-send');
+    var list = $('chat-convos'), search = $('chat-search');
+    var busy = false;
+
+    function el(tag, cls, text) {
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    }
+    function current() { return convos.filter(function (c) { return c.id === currentId; })[0]; }
+    function lastAt(c) { return c.messages.length ? c.messages[c.messages.length - 1].at : new Date(0); }
+    function scrollDown() { body.scrollTop = body.scrollHeight; }
+
+    // ---------- รายการแชท (ล่าสุดขึ้นก่อน · ค้นหาจากชื่อ/ข้อความ) ----------
+    function renderList() {
+      var q = search.value.trim().toLowerCase();
+      var sorted = convos.slice().sort(function (a, b) { return lastAt(b) - lastAt(a); });
+      var shown = sorted.filter(function (c) {
+        return !q || c.title.toLowerCase().indexOf(q) >= 0 || c.messages.some(function (m) { return m.text.toLowerCase().indexOf(q) >= 0; });
+      });
+      list.innerHTML = '';
+      shown.forEach(function (c) {
+        var last = c.messages[c.messages.length - 1];
+        var li = el('li');
+        var b = el('button', 'chat-convo' + (c.id === currentId ? ' is-active' : ''));
+        b.type = 'button';
+        if (c.id === currentId) b.setAttribute('aria-current', 'true');
+        var top = el('span', 'chat-convo-top');
+        top.appendChild(el('span', 'chat-convo-title', c.title));
+        top.appendChild(el('span', 'chat-convo-time', last ? listTime(last.at) : ''));
+        b.appendChild(top);
+        b.appendChild(el('span', 'chat-convo-preview', last ? (last.who === 'me' ? 'คุณ: ' : '') + last.text.replace(/\s+/g, ' ') : 'ยังไม่มีข้อความ'));
+        b.addEventListener('click', function () { open(c.id); });
+        li.appendChild(b);
+        list.appendChild(li);
+      });
+      $('chat-total').textContent = convos.length;
+      $('chat-convos-empty').hidden = shown.length > 0 || !convos.length;
+    }
+
+    // ---------- ข้อความ ----------
+    function botAvatar() {
+      var a = el('span', 'chat-avatar');
+      var img = el('img');
+      img.src = BOT_AVATAR;
+      img.alt = '';
+      a.appendChild(img);
+      return a;
+    }
+    // ข้อความใส่ด้วย textContent เสมอ (กันแทรก HTML)
+    function messageEl(m) {
+      var row = el('div', 'chat-row chat-row-' + m.who);
+      if (m.who === 'bot') row.appendChild(botAvatar());
+      var col = el('div', 'chat-col');
+      var bubble = el('div', 'chat-bubble', m.text);
+      if (m.link) {
+        var a = el('a', 'chat-link', m.link.label);
+        a.href = m.link.href;
+        a.appendChild($('tpl-arrow').content.firstElementChild.cloneNode(true));
+        bubble.appendChild(a);
+      }
+      col.appendChild(bubble);
+      col.appendChild(el('div', 'chat-time', hm(m.at)));
+      row.appendChild(col);
+      return row;
+    }
+    function dayEl(d) {
+      var n = el('div', 'chat-day');
+      n.appendChild(el('span', null, dayLabel(d)));
+      return n;
+    }
+    function renderBody() {
+      var c = current();
+      body.innerHTML = '';
+      var prev = null;
+      c.messages.forEach(function (m) {
+        if (!prev || !sameDay(prev, m.at)) body.appendChild(dayEl(m.at));
+        body.appendChild(messageEl(m));
+        prev = m.at;
+      });
+      $('chat-title').textContent = c.title;
+      scrollDown();
+    }
+    function push(m) {
+      var c = current(), prev = c.messages.length ? c.messages[c.messages.length - 1].at : null;
+      c.messages.push(m);
+      if (!prev || !sameDay(prev, m.at)) body.appendChild(dayEl(m.at));
+      body.appendChild(messageEl(m));
+      scrollDown();
+      renderList();
+    }
+    function showTyping() {
+      var row = el('div', 'chat-row chat-row-bot chat-typing-row');
+      row.appendChild(botAvatar());
+      var b = el('div', 'chat-bubble chat-typing');
+      b.setAttribute('aria-label', 'กำลังพิมพ์');
+      b.appendChild(el('i')); b.appendChild(el('i')); b.appendChild(el('i'));
+      row.appendChild(b);
+      body.appendChild(row);
+      scrollDown();
+      return row;
+    }
+
+    // ---------- เปิด / สร้าง / ลบ แชท ----------
+    function open(id) {
+      if (busy) return;
+      currentId = id;
+      renderList();
+      renderBody();
+      root.classList.add('is-chatting'); // จอเล็ก: สลับไปหน้ากล่องแชท
+      input.focus();
+    }
+    function newChat() {
+      if (busy) return;
+      var c = convo(NEW_TITLE, [greeting(new Date())]);
+      convos.push(c);
+      search.value = '';
+      open(c.id);
+    }
+    $('chat-new').addEventListener('click', newChat);
+    $('chat-delete').addEventListener('click', function () {
+      var c = current();
+      if (busy || !confirm('ลบแชท "' + c.title + '" ?')) return;
+      convos = convos.filter(function (x) { return x !== c; });
+      if (!convos.length) return newChat();
+      var latest = convos.slice().sort(function (a, b) { return lastAt(b) - lastAt(a); })[0];
+      open(latest.id);
+      root.classList.remove('is-chatting');
+    });
+    $('chat-back').addEventListener('click', function () { root.classList.remove('is-chatting'); });
+    search.addEventListener('input', renderList);
+
+    // ---------- ส่งข้อความ ----------
+    function syncSend() { send.disabled = busy || !input.value.trim(); }
+    function autosize() {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 5 * 24 + 22) + 'px';
+    }
+    function ask(text) {
+      text = String(text || '').trim();
+      if (!text || busy) return;
+      var c = current();
+      // แชทใหม่: ตั้งชื่อจากคำถามแรก
+      if (c.title === NEW_TITLE) c.title = text.length > 40 ? text.slice(0, 40) + '…' : text;
+      $('chat-title').textContent = c.title;
+      push({ who: 'me', text: text, at: new Date() });
+      input.value = '';
+      autosize();
+      busy = true;
+      syncSend();
+      var typing = showTyping();
+      var r = answer(text), chatId = c.id;
+      setTimeout(function () {
+        typing.remove();
+        busy = false;
+        if (currentId === chatId) push({ who: 'bot', text: r.reply, link: r.link, at: new Date() });
+        syncSend();
+        input.focus();
+      }, 800 + Math.random() * 400);
+    }
+    form.addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); });
+    input.addEventListener('input', function () { autosize(); syncSend(); });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); }
+    });
+
+    renderList();
+    renderBody();
+  })();
+</script>

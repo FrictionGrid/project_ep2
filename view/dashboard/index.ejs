@@ -1,0 +1,145 @@
+<%
+    const num = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+    const me = locals.user || { name: '' };
+    const hour = +new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Bangkok' }).format(new Date());
+    const greet = hour < 12 ? 'สวัสดีตอนเช้า' : hour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น';
+    const pct = summary.fullTotal ? Math.round(summary.total / summary.fullTotal * 100) : 0;
+    const STATUS = { none: 'ยังไม่เข้างาน', work: 'เข้างานแล้ว', partial: 'เข้างานบางส่วน', leave: 'ลา' };
+    const SHORT = { 'อาทิตย์': 'อา.', 'จันทร์': 'จ.', 'อังคาร': 'อ.', 'พุธ': 'พ.', 'พฤหัส': 'พฤ.', 'ศุกร์': 'ศ.', 'เสาร์': 'ส.' };
+    const maxFull = Math.max.apply(null, days.map(function (d) { return d.full; }));
+%>
+<section class="hero">
+  <div>
+    <div class="hero-eyebrow"><%= greet %></div>
+    <h2 class="hero-title"><%= me.name %></h2>
+    <p class="hero-text">สัปดาห์นี้ (<%= rangeLabel %>) ลงเวลาไปแล้ว <b><%= num(summary.total) %></b> จาก <%= num(summary.fullTotal) %> ชั่วโมง</p>
+  </div>
+  <a href="/worktime" class="btn btn-invert">ไปลงเวลา <%- include('../partials/icon', { name: 'arrow' }) %></a>
+</section>
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'clock' }) %></span><span class="stat-label">ชั่วโมงสัปดาห์นี้</span></div>
+    <div class="stat-value"><%= num(summary.total) %> <small>/ <%= num(summary.fullTotal) %> ชม.</small></div>
+    <div class="stat-bar"><span style="width: <%= Math.min(100, pct) %>%"></span></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'sun' }) %></span><span class="stat-label">กะกลางวัน</span></div>
+    <div class="stat-value"><%= num(summary.dayTotal) %> <small>ชม.</small></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'moon' }) %></span><span class="stat-label">กะกลางคืน</span></div>
+    <div class="stat-value"><%= num(summary.nightTotal) %> <small>ชม.</small></div>
+  </div>
+  <div class="stat">
+    <div class="stat-head"><span class="stat-icon"><%- include('../partials/icon', { name: 'task' }) %></span><span class="stat-label">Task สัปดาห์นี้</span></div>
+    <div class="stat-value"><%= weekTasks.done %> <small>/ <%= weekTasks.total %> task</small></div>
+    <div class="stat-bar"><span style="width: <%= weekTasks.total ? Math.round(weekTasks.done / weekTasks.total * 100) : 0 %>%"></span></div>
+  </div>
+</div>
+</div>
+
+<div class="dash-grid">
+  <!-- วันนี้ -->
+  <section class="card card-pad">
+    <div class="card-head">
+      <h3 class="card-title">วันนี้</h3>
+      <% if (today) { %><span class="muted"><%= today.dayName %> <%= today.label %></span><% } %>
+    </div>
+    <% if (!today) { %>
+      <p class="muted">ไม่มีข้อมูลวันนี้</p>
+    <% } else { %>
+      <ul class="today-list">
+        <% today.shifts.forEach(function (s) { %>
+          <li class="today-item">
+            <span class="today-icon"><%- include('../partials/icon', { name: s.shift === 'day' ? 'sun' : 'moon' }) %></span>
+            <span class="today-meta">
+              <span class="today-name">กะ<%= s.label %></span>
+              <span class="muted"><%= num(s.full) %> ชม.</span>
+            </span>
+            <span class="pill pill-<%= s.status %>"><%= STATUS[s.status] %></span>
+          </li>
+        <% }) %>
+      </ul>
+      <a href="/worktime" class="card-link">จัดการเวลาทำงาน <%- include('../partials/icon', { name: 'arrow' }) %></a>
+    <% } %>
+  </section>
+
+  <!-- กราฟ 7 วัน: แท่งเทา = ชั่วโมงเต็ม · แท่งดำ = ที่ทำได้จริง -->
+  <section class="card card-pad">
+    <div class="card-head">
+      <h3 class="card-title">ภาพรวมสัปดาห์</h3>
+      <span class="muted"><%= pct %>%</span>
+    </div>
+    <div class="week-chart" role="img" aria-label="ชั่วโมงทำงานรายวันสัปดาห์นี้">
+      <% days.forEach(function (d) { %>
+        <div class="week-col<%= d.isToday ? ' is-today' : '' %>" title="<%= d.dayName %> <%= num(d.actual) %>/<%= num(d.full) %> ชม.">
+          <div class="week-bar" style="height: <%= (d.full / maxFull * 100).toFixed(1) %>%">
+            <span style="height: <%= d.full ? (d.actual / d.full * 100).toFixed(1) : 0 %>%"></span>
+          </div>
+          <div class="week-val"><%= num(d.actual) %></div>
+          <div class="week-day"><%= SHORT[d.dayName] || d.dayName %></div>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+</div>
+
+<%
+    const PRIO = { urgent: 'ด่วนมาก', high: 'ด่วน', normal: 'ทั่วไป' };
+    const overdueCount = todayTasks.filter(function (t) { return t.overdue; }).length;
+%>
+<!-- Task วันนี้: ของวันนี้ + ที่ค้างจากวันก่อน (ยังไม่เสร็จ) · ติ๊กเสร็จ → บันทึกลง DB แล้วหายไป -->
+<section class="card card-pad dash-tasks" id="dash-tasks">
+  <div class="card-head">
+    <h3 class="card-title">Task วันนี้</h3>
+    <span class="muted" id="dt-count">
+      เหลือ <b><%= todayTasks.length %></b> งาน<% if (overdueCount) { %> · ค้าง <b><%= overdueCount %></b><% } %>
+    </span>
+  </div>
+
+  <ul class="dt-list" id="dt-list">
+    <% todayTasks.forEach(function (t) { %>
+      <li class="dt-item">
+        <form method="POST" action="/tasks/<%= t.id %>/toggle" class="dt-form">
+          <input type="hidden" name="from" value="dashboard" />
+          <button type="submit" class="tk-check" aria-label="ทำเสร็จ: <%= t.title %>">
+            <%- include('../partials/icon', { name: 'check', stroke: 2.6 }) %>
+          </button>
+        </form>
+        <span class="tk-prio tk-prio-<%= t.priority %>"><%= PRIO[t.priority] %></span>
+        <span class="dt-title"><%= t.title %></span>
+        <span class="dt-meta">
+          <% if (t.overdue) { %><span class="dt-overdue">ค้างจาก<%= t.dueLabel %></span><% } %>
+          <span class="dt-shift"><%- include('../partials/icon', { name: t.shift === 'day' ? 'sun' : 'moon' }) %><%= t.shift === 'day' ? 'กลางวัน' : 'กลางคืน' %></span>
+        </span>
+      </li>
+    <% }) %>
+  </ul>
+
+  <div class="dt-empty"<% if (todayTasks.length) { %> hidden<% } %>>
+    <span class="today-icon"><%- include('../partials/icon', { name: 'check' }) %></span>
+    <div>
+      <div class="today-name">ไม่มี task ค้างแล้ว</div>
+      <div class="muted">งานวันนี้เสร็จครบทุกอย่าง</div>
+    </div>
+  </div>
+
+  <a href="/tasks" class="card-link">ไปหน้า Tasks <%- include('../partials/icon', { name: 'arrow' }) %></a>
+</section>
+
+<script>
+  (function () {
+    // ติ๊กเสร็จ → ขีดฆ่าให้เห็นก่อน แล้วค่อยส่งฟอร์ม (หน้าโหลดใหม่ task หายไป)
+    document.querySelectorAll('.dt-form').forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = f.querySelector('button');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        f.closest('.dt-item').classList.add('is-done', 'is-leaving');
+        setTimeout(function () { f.submit(); }, 350);
+      });
+    });
+  })();
+</script>

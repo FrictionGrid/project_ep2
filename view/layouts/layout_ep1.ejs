@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= locals.pageTitle || 'Friction' %> · Friction</title>
+  <link rel="icon" type="image/png" href="/images/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <%- locals.style || '' %>
+</head>
+<body>
+  <div class="app">
+    <%- include('../partials/sidebar') %>
+
+    <div class="sidebar-backdrop" data-sidebar-close></div>
+
+    <div class="main">
+      <%- include('../partials/topbar') %>
+
+      <main class="content">
+        <div class="content-inner">
+          <%- body %>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <%# แจ้งเตือนแบบ toast มุมขวาบน: status = สำเร็จ (หายเองใน 4 วิ) · error = ผิดพลาด (ค้างจนกดปิด) %>
+  <div class="toasts" aria-live="polite">
+    <% if (locals.status) { %>
+      <div class="toast toast-ok" role="status" data-autohide>
+        <span class="toast-icon"><%- include('../partials/icon', { name: 'check', stroke: 2.4 }) %></span>
+        <span class="toast-text"><%= locals.status %></span>
+        <button type="button" class="toast-close" aria-label="ปิด" data-toast-close><%- include('../partials/icon', { name: 'x' }) %></button>
+      </div>
+    <% } %>
+    <% if (locals.error) { %>
+      <div class="toast toast-error" role="alert">
+        <span class="toast-icon"><%- include('../partials/icon', { name: 'alert', stroke: 2.2 }) %></span>
+        <span class="toast-text"><%= locals.error %></span>
+        <button type="button" class="toast-close" aria-label="ปิด" data-toast-close><%- include('../partials/icon', { name: 'x' }) %></button>
+      </div>
+    <% } %>
+  </div>
+
+  <script>
+    // toast: สำเร็จหายเองใน 4 วิ · กด × ปิดได้ทุกอัน
+    document.querySelectorAll('.toast').forEach(function (t) {
+      function close() { t.classList.add('is-leaving'); setTimeout(function () { t.remove(); }, 200); }
+      t.querySelector('[data-toast-close]').addEventListener('click', close);
+      if (t.hasAttribute('data-autohide')) setTimeout(close, 4000);
+    });
+
+    // เปิด/ปิด sidebar บนจอเล็ก
+    document.querySelectorAll('[data-sidebar-toggle], [data-sidebar-close]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        document.body.classList.toggle('sidebar-open');
+      });
+    });
+
+    // จำตำแหน่งเลื่อนของเมนูข้ามหน้า · ไม่มีค่าเดิม → เลื่อนให้เห็นเมนูที่เลือก
+    (function () {
+      var nav = document.querySelector('.sidebar-nav');
+      if (!nav) return;
+      var KEY = 'app.sidebarScroll';
+      var saved = null;
+      try { saved = sessionStorage.getItem(KEY); } catch (e) {}
+      if (saved !== null) nav.scrollTop = +saved;
+      var active = nav.querySelector('.nav-link.active');
+      if (active) {
+        var a = active.getBoundingClientRect(), n = nav.getBoundingClientRect();
+        if (a.top < n.top || a.bottom > n.bottom) active.scrollIntoView({ block: 'nearest' });
+      }
+      window.addEventListener('pagehide', function () {
+        try { sessionStorage.setItem(KEY, nav.scrollTop); } catch (e) {}
+      });
+    })();
+  </script>
+  <%- locals.script || '' %>
+</body>
+</html>
